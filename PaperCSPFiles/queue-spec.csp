@@ -1,0 +1,172 @@
+module SeqQueue
+    USER(id, count) =
+    (
+        count > 0 & 
+        enqueue.id?value ->
+        end_enqueue.id ->
+        USER(id, count - 1)
+    )
+    []
+    (
+        dequeue.id ->
+        return.id?value ->
+        USER(id, count)
+    )
+
+    QUEUE_SPEC(q) =
+    (
+        length(q) <= MAX_QUEUE_LENGTH &
+        enqueue?proc?v ->
+        end_enqueue.proc ->
+        QUEUE_SPEC(q^<v>)
+    )
+    []
+    (
+        dequeue?proc ->
+        if (length(q) == 0) then
+            return.proc!mem::INT.mem::NULL ->
+            QUEUE_SPEC(q)
+        else
+            return.proc!(head(q)) ->
+            QUEUE_SPEC(tail(q))
+    )
+
+    alphaINTERACTION =
+    {
+        dequeue.p,
+        end_enqueue.p,
+        enqueue.p.in,
+        return.p.i 
+        | 
+            p <- Processes,
+            in <- mem::Integers_Not_Null,
+            i <- mem::Integers
+    }
+
+exports
+    SPEC(users) =
+        (
+            ||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users))
+        )
+        [| alphaINTERACTION |]
+        QUEUE_SPEC(<>)
+endmodule
+
+module ConcQueue
+    
+    USER(id, count) =
+    (
+        count > 0 & 
+        enqueue.id?val ->
+        lin_enqueue.id.val ->
+        end_enqueue.id ->
+        USER(id, count - 1)
+    )
+    []
+    (
+        dequeue.id ->
+        lin_dequeue.id?value ->
+        return.id.value ->
+        USER(id, count)
+    )
+
+    QUEUE_SPEC(q) =
+    (
+        enqueue?_?_ ->
+        QUEUE_SPEC(q)
+    )
+    []
+    (
+        length(q) <= MAX_QUEUE_LENGTH &
+        lin_enqueue?proc?v ->
+        QUEUE_SPEC(q^<v>)
+    )
+    []
+    (
+        end_enqueue?_ ->
+        QUEUE_SPEC(q)
+    )
+    []
+    (
+        dequeue?_ ->
+        QUEUE_SPEC(q)
+    )
+    []
+    (
+        if (length(q) == 0) then
+            lin_dequeue?proc!mem::INT.mem::NULL ->
+            QUEUE_SPEC(q)
+        else
+            lin_dequeue?proc!head(q) ->
+            QUEUE_SPEC(tail(q))
+    )
+    []
+    (
+        return?_?_ ->
+        QUEUE_SPEC(q)
+    )
+
+exports
+    channel lin_enqueue : Processes.mem::Integers_Not_Null
+    channel lin_dequeue : Processes.mem::Integers
+
+    SPEC(users) = normal((
+        (
+            (||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users)))
+        )
+        [| {| enqueue, lin_enqueue, end_enqueue, dequeue, lin_dequeue, return |} |]
+        QUEUE_SPEC(<>)) \ {| lin_enqueue, lin_dequeue |} )
+
+    SPEC'(users) = normal((
+        (
+            (||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users)))
+        )
+        [| {| enqueue, lin_enqueue, end_enqueue, dequeue, lin_dequeue, return |} |]
+        QUEUE_SPEC(<>)) 
+            \ {| enqueue, end_enqueue, dequeue, return |}) 
+            [[ lin_enqueue <- simple_enqueue, lin_dequeue <- simple_dequeue]] 
+endmodule
+
+module SimpleQueue
+
+    USER(id, count) =
+    (
+        count > 0 & 
+        simple_enqueue.id?val ->
+        USER(id, count - 1)
+    )
+    []
+    (
+        simple_dequeue.id?value ->
+        USER(id, count)
+    )
+
+    SIMPLE_QUEUE(q) =
+    (
+        length(q) <= MAX_QUEUE_LENGTH &
+        simple_enqueue?proc?v ->
+        SIMPLE_QUEUE(q^<v>)
+    )
+    []
+    (
+        length(q) == 0 &
+        simple_dequeue?proc!mem::INT.mem::NULL ->
+        SIMPLE_QUEUE(q)
+    )
+    []
+    (
+        length(q) > 0 &
+        simple_dequeue?proc!head(q) ->
+        SIMPLE_QUEUE(tail(q))
+    )
+
+exports
+    SPEC(users) =
+        (
+            ||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users))
+        )
+        [| {| simple_enqueue, simple_dequeue |} |]
+        SIMPLE_QUEUE(<>)
+
+
+endmodule

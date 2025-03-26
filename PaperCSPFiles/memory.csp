@@ -1,0 +1,115 @@
+module Memory(max)
+    -- Internal types
+    -- Values
+    nametype VALUES = {0..2}
+    nametype VALUES_NOT_NULL = {1..2}
+    -- The nodes in the queue
+    nametype NODES = {0..(max + 1)}
+    nametype NODES_NOT_NULL = {1..(max + 1)}
+
+    -- Runs all the nodes available
+    NODE_OBJS =
+        ||| id : NODES_NOT_NULL @
+        (
+            VARIABLE(
+                next.load.NODE.id, 
+                next.store.NODE.id, 
+                ANODE.NULL)
+            |||
+            VARIABLE(
+                value.load.NODE.id,
+                value.store.NODE.id,
+                AINT.NULL)
+        )
+
+    alphaNODE_OBJS =
+    {|
+        next,
+        value
+    |}
+
+    -- Runs the atomic nodes
+    ATOMIC_NODES =
+        ||| id : NODES_NOT_NULL @
+            ATOMIC_VARIABLE(
+                atomic_node.load.ANODE.id,
+                atomic_node.store.ANODE.id,
+                atomic_node_cas.ANODE.id,
+                NODE.NULL)
+
+    alphaATOMIC_NODES =
+    {|
+        atomic_node,
+        atomic_node_cas
+    |}
+
+    -- Runs the atomic integers
+    ATOMIC_INTEGERS =
+        ||| ref : NODES_NOT_NULL @
+            ATOMIC_VARIABLE(
+                atomic_int.load.AINT.ref,
+                atomic_int.store.AINT.ref,
+                atomic_int_cas.AINT.ref,
+                INT.NULL)
+
+    alphaATOMIC_INTEGERS =
+    {|
+        atomic_int,
+        atomic_int_cas
+    |}
+
+    MEMORY_MANAGER = MEMORY_MANAGER'(seq(Nodes_Not_Null))
+    MEMORY_MANAGER'(<>) = STOP
+    MEMORY_MANAGER'(<nxt>^available) =
+        new_node!nxt ->
+        MEMORY_MANAGER'(available)
+
+    alphaMEMORY_MANAGER = {new_node.n | n <- Nodes}
+
+exports
+    NULL = 0
+
+    -- Nodes in the queue
+    datatype Nodes = NODE.NODES
+    subtype Nodes_Not_Null = NODE.NODES_NOT_NULL
+    datatype AtomicNodes = ANODE.NODES
+    subtype AtomicNodes_Not_Null = ANODE.NODES_NOT_NULL
+
+    -- Integer values
+    datatype AtomicIntegers = AINT.NODES
+    subtype AtomicIntegers_Not_Null = AINT.NODES_NOT_NULL
+    datatype Integers = INT.VALUES
+    subtype Integers_Not_Null = INT.VALUES_NOT_NULL
+
+    -- Channels
+    -- Object creation channels
+    channel new_node : Nodes_Not_Null
+    -- Nodes
+    channel next : Operations.Nodes_Not_Null.AtomicNodes
+    channel value : Operations.Nodes_Not_Null.AtomicIntegers
+    -- Atomic nodes
+    channel atomic_node : Operations.AtomicNodes_Not_Null.Nodes
+    channel atomic_node_cas : AtomicNodes_Not_Null.Nodes.Nodes.Bool
+    -- Atomic integers
+    channel atomic_int : Operations.AtomicIntegers_Not_Null.Integers
+    channel atomic_int_cas : AtomicIntegers_Not_Null.Integers_Not_Null.Integers.Bool
+
+    -- Process to start entire memory system
+    MEMORY =
+        MEMORY_MANAGER
+        |||
+        NODE_OBJS
+        |||
+        ATOMIC_NODES
+        |||
+        ATOMIC_INTEGERS
+
+    -- Alphabet for entire memory system
+    alphaMEMORY = Union({
+        alphaNODE_OBJS,
+        alphaATOMIC_NODES,
+        alphaATOMIC_INTEGERS,
+        alphaMEMORY_MANAGER
+    })
+
+endmodule

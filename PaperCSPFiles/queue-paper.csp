@@ -1,0 +1,173 @@
+module MQueue
+    -- while true
+    DEQUEUE(id) = 
+        DEQUEUE'(id, nullNode, nullNode, nullNode)
+
+    DEQUEUE'(id, hd, tl, nxt) = 
+        -- head = Q->head
+        getHead?hd : mem::Nodes_Not_Null ->
+        -- tail = Q->tail
+        getTail?tl : mem::Nodes_Not_Null ->
+        -- next = head->next
+        getNext.hd?tmp : mem::AtomicNodes_Not_Null ->
+        getNode.tmp?nxt ->
+        -- if head == Q->head
+        getHead?tmp_node : mem::Nodes_Not_Null ->
+        if (hd == tmp_node) then
+        (
+            -- if head.ptr == tail.ptr
+            if (hd == tl) then
+            (
+                -- if next.ptr == null
+                if (nxt == nullNode) then
+                (
+                    -- return NULL
+                    return.id!nullInt ->
+                    SKIP
+                )
+                -- else
+                else
+                (
+                    -- CAS(&Q->Tail, tail, next.ptr)
+                    casTail!tl!nxt?succ ->
+                    -- loop
+                    DEQUEUE'(id, hd, tl, nxt)
+                )
+            )
+            -- else
+            else
+            (
+                -- *pvalue = next.ptr->value
+                nxt != nullNode & getValue.nxt?tmp_int : mem::AtomicIntegers_Not_Null ->
+                getInt.tmp_int?value ->
+                -- if (CAS(&Q->Head, head, next_ptr))
+                casHead!hd!nxt?succ ->
+                if (succ) then
+                (
+                    -- return value
+                    return.id!value ->
+                    SKIP
+                )
+                -- else
+                else
+                    -- loop
+                    DEQUEUE'(id, hd, tl, nxt)
+            )
+        )
+        else
+            -- loop
+            DEQUEUE'(id, hd, tl, nxt)
+
+    ENQUEUE(val) =
+        -- node = new node
+        newNode?mem::NODE.new ->
+        setNext.mem::NODE.new!mem::ANODE.new ->
+        setValue.mem::NODE.new!mem::AINT.new ->
+        -- node->value = value
+        getValue.mem::NODE.new?tmp_int : mem::AtomicIntegers_Not_Null ->
+        setInt.tmp_int!val ->
+        -- node->next.ptr = null
+        getNext.mem::NODE.new?tmp_node : mem::AtomicNodes_Not_Null ->
+        setNode.tmp_node!nullNode ->
+        -- while (true)
+        ENQUEUE'(mem::NODE.new, nullNode, nullNode)
+
+    ENQUEUE'(node, tl, nxt) =
+        -- tail = Q->tail
+        getTail?tl : mem::Nodes_Not_Null ->
+        -- next = tail.ptr->next
+        getNext.tl?tmp_node : mem::AtomicNodes_Not_Null ->
+        getNode.tmp_node?nxt ->
+        -- if tail == Q->tail
+        getTail?tmp ->
+        if (tl == tmp) then
+        (
+            -- if next.ptr == null
+            if (nxt == nullNode) then
+            (
+                -- if CAS(&tail.ptr->next, next, node)
+                getNext.tl?tmp_node : mem::AtomicNodes_Not_Null ->
+                casNode.tmp_node!nxt!node?succ ->
+                if (succ) then
+                (
+                    -- CAS(&Q->tail, tail, node)
+                    casTail!tl!node?succ ->
+                    -- break (return)
+                    SKIP
+                )
+                -- else loop
+                else
+                    ENQUEUE'(node, tl, nxt)
+            )
+            else
+            (
+                -- CAS(Q->tail, tail, next.ptr)
+                casTail!tl!nxt?succ ->
+                -- loop
+                ENQUEUE'(node, tl, nxt)
+            )
+        )
+        else
+            -- loop
+            ENQUEUE'(node, tl, nxt)
+
+    USER(id, count) =
+        (
+            count > 0 &
+            enqueue.id?value ->
+            (
+                ENQUEUE(value);
+                (
+                    end_enqueue.id ->
+                    USER(id, count - 1)
+                )
+            )
+        )
+        []
+        (
+            dequeue.id ->
+            (
+                DEQUEUE(id);
+                USER(id, count)
+            )
+        )
+
+    alphaDEQUEUE = Union({
+        {| getHead |},
+        {| casHead |},
+        {| getTail |},
+        {| casTail |},
+        {| getNode |},
+        {| casNode |},
+        {| getNext |},
+        {| getValue |},
+        {| getInt |}
+    })
+
+    alphaENQUEUE = Union({
+        {| getTail |},
+        {| casTail |},
+        {| newNode |},
+        {| setNode |},
+        {| getNode |},
+        {| casNode |},
+        {| setNext |},
+        {| getNext |},
+        {| setValue |},
+        {| getValue |},
+        {| setInt |}
+    })
+
+exports
+    
+    alphaMQUEUE = union(alphaENQUEUE, alphaDEQUEUE)
+
+    IMPLEMENTATION(users) = 
+    (
+        Q::CREATE_QUEUE ;
+        (
+            ||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users))
+        )
+    )
+
+endmodule

@@ -1,0 +1,215 @@
+module JQueue
+    -- Import some helper alias symbols
+    AtomicNodes_Not_Null = mem::AtomicNodes_Not_Null
+    Nodes_Not_Null = mem::Nodes_Not_Null
+    new_node = mem::new_node
+    next = mem::next
+    value = mem::value
+    atomic_node = mem::atomic_node
+    atomic_node_cas = mem::atomic_node_cas
+    atomic_int = mem::atomic_int
+
+    UPDATE_HEAD(id, hd, pointer) =
+        if (hd != pointer) then
+        (
+            casHead!hd!pointer?success ->
+            if (success) then
+            (
+                getNext.hd?tmp_node : AtomicNodes_Not_Null ->
+                setNode.tmp_node!hd ->
+                SKIP
+            )
+            else
+                SKIP
+        )
+        else
+            SKIP
+
+    -- restartFromHead: while (true)
+    DEQUEUE(id) = 
+        DEQUEUE'(id, nullNode, nullNode, nullNode)
+
+    DEQUEUE'(id, hd, pointer, next) =
+        getHead?hd : mem::Nodes_Not_Null ->
+        DEQUEUE''(id, hd, hd, nullNode)
+
+    DEQUEUE''(id, hd, pointer, next) =
+        getValue.pointer?tmp_int : mem::AtomicIntegers_Not_Null ->
+        getInt.tmp_int?item ->
+        if (item != nullInt) then
+        (
+            getValue.pointer?tmp_int : mem::AtomicIntegers_Not_Null ->
+            casInt.tmp_int!item!nullInt?success ->
+            if (success) then
+            (
+                (
+                    if (pointer != hd) then
+                    (
+                        getNext.pointer?tmp_node : AtomicNodes_Not_Null ->
+                        getNode.tmp_node?next ->
+                        if (next != nullNode) then
+                            UPDATE_HEAD(id, hd, next)
+                        else
+                            UPDATE_HEAD(id, hd, pointer)
+                    )
+                    else
+                        SKIP
+                );
+                return.id!item ->
+                SKIP
+            )
+            else
+            (
+                getNext.pointer?tmp_node : AtomicNodes_Not_Null ->
+                getNode.tmp_node?next ->
+                if (next == nullNode) then
+                (
+                    UPDATE_HEAD(id, hd, pointer);
+                    (
+                        return.id!nullInt ->
+                        SKIP
+                    )
+                )
+                else if (pointer == next) then
+                    DEQUEUE'(id, hd, next, next)
+                else
+                    DEQUEUE''(id, hd, next, next)
+            )
+        )
+        else
+        (
+            getNext.pointer?tmp_node : AtomicNodes_Not_Null ->
+            getNode.tmp_node?next ->
+            if (next == nullNode) then
+            (
+                UPDATE_HEAD(id, hd, pointer);
+                (
+                    return.id!nullInt ->
+                    SKIP
+                )
+            )
+            else if (pointer == next) then
+                DEQUEUE'(id, hd, next, next)
+            else
+                DEQUEUE''(id, hd, next, next)
+        )
+
+    ENQUEUE(val) =
+        -- Node node = new Node()
+        new_node?(mem::NODE.new) ->
+        next.store.(mem::NODE.new)!(mem::ANODE.new) ->
+        value.store.(mem::NODE.new)!(mem::AINT.new) ->
+        -- node.value.set(value)
+        value.load.(mem::NODE.new)?tmp_int : mem::AtomicIntegers_Not_Null ->
+        atomic_int.store.tmp_int!val ->
+        -- node.next.set(null)
+        next.load.(mem::NODE.new)?tmp_node : mem::AtomicNodes_Not_Null ->
+        atomic_node.store.tmp_node!(mem::NODE.mem::NULL) ->
+        getTail?tl : Nodes_Not_Null ->
+        ENQUEUE'(mem::NODE.new, tl, tl)
+
+    --ENQUEUE' :: (mem::Nodes_Not_Null, mem::AtomicNodes_Not_Null, mem::AtomicNodes_Not_Null) -> Proc
+    ENQUEUE'(node, tl, pointer) =
+        getNext.pointer?tmp_node : AtomicNodes_Not_Null ->
+        getNode.tmp_node?next ->
+        if (next == nullNode) then
+        (
+            getNext.pointer?tmp_node : mem::AtomicNodes_Not_Null ->
+            casNode.tmp_node!nullNode!node?success ->
+            if (success) then
+            (
+                if (pointer != tl) then
+                (
+                    casTail!tl!node?success ->
+                    SKIP
+                )
+                else
+                    SKIP
+            )
+            else
+                ENQUEUE'(node, tl, pointer)
+        )
+        else if (pointer == next) then
+        (
+            getTail?tmp : mem::Nodes_Not_Null ->
+            if (tmp != tl) then
+                ENQUEUE'(node, tl, tmp)
+            else
+            (
+                getHead?pointer : mem::Nodes_Not_Null ->
+                ENQUEUE'(node, tl, pointer)
+            )
+        )
+        else
+        (
+            if (pointer != tl) then
+            (
+                getTail?tmp : mem::Nodes_Not_Null ->
+                if (tmp != tl) then
+                    ENQUEUE'(node, tl, tmp)
+                else
+                    ENQUEUE'(node, tl, next)
+            )
+            else
+                ENQUEUE'(node, tl, next)
+        )
+
+    USER(id, count) =
+    (
+        count > 0 &
+        enqueue.id?value ->
+        (
+            ENQUEUE(value);
+            (
+                end_enqueue.id ->
+                USER(id, count - 1)
+            )
+        )
+    )
+    []
+    (
+        dequeue.id ->
+        (
+            DEQUEUE(id);
+            USER(id, count)
+        )
+    )
+
+    alphaDEQUEUE = Union({
+        {| getHead |},
+        {| casHead |},
+        {| getTail |},
+        {| casTail |},
+        {| getNode |},
+        {| casNode |},
+        {| getNext |},
+        {| getValue |},
+        {| getInt |}
+    })
+
+    alphaENQUEUE = Union({
+        {| getTail |},
+        {| casTail |},
+        {| newNode |},
+        {| setNode |},
+        {| getNode |},
+        {| casNode |},
+        {| setNext |},
+        {| getNext |},
+        {| setValue |},
+        {| getValue |},
+        {| setInt |}
+    })
+
+exports
+    alphaJQUEUE = union(alphaENQUEUE, alphaDEQUEUE)
+
+    IMPLEMENTATION(users) =
+    (
+        Q::CREATE_QUEUE ;
+        (
+            ||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users))
+        )
+    )
+
+endmodule
