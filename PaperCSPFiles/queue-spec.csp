@@ -24,7 +24,7 @@ module SeqQueue
     (
         dequeue?proc ->
         if (length(q) == 0) then
-            return.proc!mem::INT.mem::NULL ->
+            return.proc!nullInt ->
             QUEUE_SPEC(q)
         else
             return.proc!(head(q)) ->
@@ -39,8 +39,8 @@ module SeqQueue
         return.p.i 
         | 
             p <- Processes,
-            in <- mem::Integers_Not_Null,
-            i <- mem::Integers
+            in <- Integers_Not_Null,
+            i <- Integers
     }
 
 exports
@@ -94,7 +94,7 @@ module ConcQueue
     []
     (
         if (length(q) == 0) then
-            lin_dequeue?proc!mem::INT.mem::NULL ->
+            lin_dequeue?proc!nullInt ->
             QUEUE_SPEC(q)
         else
             lin_dequeue?proc!head(q) ->
@@ -107,8 +107,8 @@ module ConcQueue
     )
 
 exports
-    channel lin_enqueue : Processes.mem::Integers_Not_Null
-    channel lin_dequeue : Processes.mem::Integers
+    channel lin_enqueue : Processes.Integers_Not_Null
+    channel lin_dequeue : Processes.Integers
 
     SPEC(users) = normal((
         (
@@ -150,7 +150,7 @@ module SimpleQueue
     []
     (
         length(q) == 0 &
-        simple_dequeue?proc!mem::INT.mem::NULL ->
+        simple_dequeue?proc!nullInt ->
         SIMPLE_QUEUE(q)
     )
     []

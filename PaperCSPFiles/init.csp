@@ -1,0 +1,65 @@
+-- This file is used to initialise the components of the 
+-- system and create aliases
+transparent normal
+transparent sbisim
+transparent wbisim
+
+include "memory.csp"
+include "queue-paper.csp"
+include "queue-java.csp"
+include "queue-spec.csp"
+
+-- Instance of the memory
+instance mem = Memory(MAX_QUEUE_LENGTH + 1)
+
+NULL = mem::NULL
+AccessOperations = mem::AccessOperations
+load = mem::load
+store = mem::store
+
+-- Values
+VALUES = mem::VALUES
+VALUES_NOT_NULL = mem::VALUES_NOT_NULL
+-- The nodes in the queue
+NODES = mem::NODES
+NODES_NOT_NULL = mem::NODES_NOT_NULL
+
+-- Nodes in the queue
+Nodes = mem::Nodes
+Nodes_Not_Null = mem::Nodes_Not_Null
+AtomicNodes = mem::AtomicNodes
+AtomicNodes_Not_Null = mem::AtomicNodes_Not_Null
+
+-- Integer values
+AtomicIntegers = mem::AtomicIntegers
+AtomicIntegers_Not_Null = mem::AtomicIntegers_Not_Null
+Integers = mem::Integers
+Integers_Not_Null = mem::Integers_Not_Null
+
+-- Exposed events
+new_node = mem::new_node
+getHead = mem::getHead
+setHead = mem::setHead
+casHead = mem::casHead
+getTail = mem::getTail
+setTail = mem::setTail
+casTail = mem::casTail
+
+-- Exposed node access events
+getNext = mem::getNext
+setNext = mem::setNext
+getValue = mem::getValue
+setValue = mem::setValue
+getNode = mem::getNode
+setNode = mem::setNode
+casNode = mem::casNode
+
+-- Exposed integer access events
+getInt = mem::getInt
+setInt = mem::setInt
+casInt = mem::casInt
+
+-- Simplified type names
+nullNode = mem::nullNode
+nullANode = mem::nullANode
+nullInt = mem::nullInt

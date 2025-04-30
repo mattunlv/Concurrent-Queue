@@ -1,13 +1,4 @@
 module JQueue
-    -- Import some helper alias symbols
-    AtomicNodes_Not_Null = mem::AtomicNodes_Not_Null
-    Nodes_Not_Null = mem::Nodes_Not_Null
-    new_node = mem::new_node
-    next = mem::next
-    value = mem::value
-    atomic_node = mem::atomic_node
-    atomic_node_cas = mem::atomic_node_cas
-    atomic_int = mem::atomic_int
 
     UPDATE_HEAD(id, hd, pointer) =
         if (hd != pointer) then
@@ -30,15 +21,15 @@ module JQueue
         DEQUEUE'(id, nullNode, nullNode, nullNode)
 
     DEQUEUE'(id, hd, pointer, next) =
-        getHead?hd : mem::Nodes_Not_Null ->
+        getHead?hd : Nodes_Not_Null ->
         DEQUEUE''(id, hd, hd, nullNode)
 
     DEQUEUE''(id, hd, pointer, next) =
-        getValue.pointer?tmp_int : mem::AtomicIntegers_Not_Null ->
+        getValue.pointer?tmp_int : AtomicIntegers_Not_Null ->
         getInt.tmp_int?item ->
         if (item != nullInt) then
         (
-            getValue.pointer?tmp_int : mem::AtomicIntegers_Not_Null ->
+            getValue.pointer?tmp_int : AtomicIntegers_Not_Null ->
             casInt.tmp_int!item!nullInt?success ->
             if (success) then
             (
@@ -97,24 +88,23 @@ module JQueue
     ENQUEUE(val) =
         -- Node node = new Node()
         new_node?(mem::NODE.new) ->
-        next.store.(mem::NODE.new)!(mem::ANODE.new) ->
-        value.store.(mem::NODE.new)!(mem::AINT.new) ->
+        setNext.(mem::NODE.new)!(mem::ANODE.new) ->
+        setValue.(mem::NODE.new)!(mem::AINT.new) ->
         -- node.value.set(value)
-        value.load.(mem::NODE.new)?tmp_int : mem::AtomicIntegers_Not_Null ->
-        atomic_int.store.tmp_int!val ->
+        getValue.(mem::NODE.new)?tmp_int : AtomicIntegers_Not_Null ->
+        setInt.tmp_int!val ->
         -- node.next.set(null)
-        next.load.(mem::NODE.new)?tmp_node : mem::AtomicNodes_Not_Null ->
-        atomic_node.store.tmp_node!(mem::NODE.mem::NULL) ->
+        getNext.(mem::NODE.new)?tmp_node : AtomicNodes_Not_Null ->
+        setNode.tmp_node!(mem::NODE.NULL) ->
         getTail?tl : Nodes_Not_Null ->
         ENQUEUE'(mem::NODE.new, tl, tl)
 
-    --ENQUEUE' :: (mem::Nodes_Not_Null, mem::AtomicNodes_Not_Null, mem::AtomicNodes_Not_Null) -> Proc
     ENQUEUE'(node, tl, pointer) =
         getNext.pointer?tmp_node : AtomicNodes_Not_Null ->
         getNode.tmp_node?next ->
         if (next == nullNode) then
         (
-            getNext.pointer?tmp_node : mem::AtomicNodes_Not_Null ->
+            getNext.pointer?tmp_node : AtomicNodes_Not_Null ->
             casNode.tmp_node!nullNode!node?success ->
             if (success) then
             (
@@ -131,12 +121,12 @@ module JQueue
         )
         else if (pointer == next) then
         (
-            getTail?tmp : mem::Nodes_Not_Null ->
+            getTail?tmp : Nodes_Not_Null ->
             if (tmp != tl) then
                 ENQUEUE'(node, tl, tmp)
             else
             (
-                getHead?pointer : mem::Nodes_Not_Null ->
+                getHead?pointer : Nodes_Not_Null ->
                 ENQUEUE'(node, tl, pointer)
             )
         )
@@ -144,7 +134,7 @@ module JQueue
         (
             if (pointer != tl) then
             (
-                getTail?tmp : mem::Nodes_Not_Null ->
+                getTail?tmp : Nodes_Not_Null ->
                 if (tmp != tl) then
                     ENQUEUE'(node, tl, tmp)
                 else
@@ -175,38 +165,40 @@ module JQueue
         )
     )
 
-    alphaDEQUEUE = Union({
-        {| getHead |},
-        {| casHead |},
-        {| getTail |},
-        {| casTail |},
-        {| getNode |},
-        {| casNode |},
-        {| getNext |},
-        {| getValue |},
-        {| getInt |}
-    })
+    alphaDEQUEUE =
+    {| 
+        getHead,
+        casHead,
+        getTail,
+        casTail,
+        getNode,
+        casNode,
+        getNext,
+        getValue,
+        getInt 
+    |}
 
-    alphaENQUEUE = Union({
-        {| getTail |},
-        {| casTail |},
-        {| newNode |},
-        {| setNode |},
-        {| getNode |},
-        {| casNode |},
-        {| setNext |},
-        {| getNext |},
-        {| setValue |},
-        {| getValue |},
-        {| setInt |}
-    })
+    alphaENQUEUE =
+    {| 
+        getTail,
+        casTail,
+        new_node,
+        setNode,
+        getNode,
+        casNode,
+        setNext,
+        getNext,
+        setValue,
+        getValue,
+        setInt
+    |}
 
 exports
     alphaJQUEUE = union(alphaENQUEUE, alphaDEQUEUE)
 
     IMPLEMENTATION(users) =
     (
-        Q::CREATE_QUEUE ;
+        mem::CREATE_QUEUE ;
         (
             ||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users))
         )

@@ -5,14 +5,14 @@ module MQueue
 
     DEQUEUE'(id, hd, tl, nxt) = 
         -- head = Q->head
-        getHead?hd : mem::Nodes_Not_Null ->
+        getHead?hd : Nodes_Not_Null ->
         -- tail = Q->tail
-        getTail?tl : mem::Nodes_Not_Null ->
+        getTail?tl : Nodes_Not_Null ->
         -- next = head->next
-        getNext.hd?tmp : mem::AtomicNodes_Not_Null ->
+        getNext.hd?tmp : AtomicNodes_Not_Null ->
         getNode.tmp?nxt ->
         -- if head == Q->head
-        getHead?tmp_node : mem::Nodes_Not_Null ->
+        getHead?tmp_node : Nodes_Not_Null ->
         if (hd == tmp_node) then
         (
             -- if head.ptr == tail.ptr
@@ -38,7 +38,7 @@ module MQueue
             else
             (
                 -- *pvalue = next.ptr->value
-                nxt != nullNode & getValue.nxt?tmp_int : mem::AtomicIntegers_Not_Null ->
+                nxt != nullNode & getValue.nxt?tmp_int : AtomicIntegers_Not_Null ->
                 getInt.tmp_int?value ->
                 -- if (CAS(&Q->Head, head, next_ptr))
                 casHead!hd!nxt?succ ->
@@ -60,23 +60,23 @@ module MQueue
 
     ENQUEUE(val) =
         -- node = new node
-        newNode?mem::NODE.new ->
+        new_node?(mem::NODE.new) ->
         setNext.mem::NODE.new!mem::ANODE.new ->
         setValue.mem::NODE.new!mem::AINT.new ->
         -- node->value = value
-        getValue.mem::NODE.new?tmp_int : mem::AtomicIntegers_Not_Null ->
+        getValue.mem::NODE.new?tmp_int : AtomicIntegers_Not_Null ->
         setInt.tmp_int!val ->
         -- node->next.ptr = null
-        getNext.mem::NODE.new?tmp_node : mem::AtomicNodes_Not_Null ->
+        getNext.mem::NODE.new?tmp_node : AtomicNodes_Not_Null ->
         setNode.tmp_node!nullNode ->
         -- while (true)
         ENQUEUE'(mem::NODE.new, nullNode, nullNode)
 
     ENQUEUE'(node, tl, nxt) =
         -- tail = Q->tail
-        getTail?tl : mem::Nodes_Not_Null ->
+        getTail?tl : Nodes_Not_Null ->
         -- next = tail.ptr->next
-        getNext.tl?tmp_node : mem::AtomicNodes_Not_Null ->
+        getNext.tl?tmp_node : AtomicNodes_Not_Null ->
         getNode.tmp_node?nxt ->
         -- if tail == Q->tail
         getTail?tmp ->
@@ -86,7 +86,7 @@ module MQueue
             if (nxt == nullNode) then
             (
                 -- if CAS(&tail.ptr->next, next, node)
-                getNext.tl?tmp_node : mem::AtomicNodes_Not_Null ->
+                getNext.tl?tmp_node : AtomicNodes_Not_Null ->
                 casNode.tmp_node!nxt!node?succ ->
                 if (succ) then
                 (
@@ -132,31 +132,33 @@ module MQueue
             )
         )
 
-    alphaDEQUEUE = Union({
-        {| getHead |},
-        {| casHead |},
-        {| getTail |},
-        {| casTail |},
-        {| getNode |},
-        {| casNode |},
-        {| getNext |},
-        {| getValue |},
-        {| getInt |}
-    })
+    alphaDEQUEUE = 
+    {| 
+        getHead,
+        casHead,
+        getTail,
+        casTail,
+        getNode,
+        casNode,
+        getNext,
+        getValue,
+        getInt 
+    |}
 
-    alphaENQUEUE = Union({
-        {| getTail |},
-        {| casTail |},
-        {| newNode |},
-        {| setNode |},
-        {| getNode |},
-        {| casNode |},
-        {| setNext |},
-        {| getNext |},
-        {| setValue |},
-        {| getValue |},
-        {| setInt |}
-    })
+    alphaENQUEUE =
+    {| 
+        getTail,
+        casTail,
+        new_node,
+        setNode,
+        getNode,
+        casNode,
+        setNext,
+        getNext,
+        setValue,
+        getValue,
+        setInt 
+    |}
 
 exports
     
@@ -164,7 +166,7 @@ exports
 
     IMPLEMENTATION(users) = 
     (
-        Q::CREATE_QUEUE ;
+        mem::CREATE_QUEUE ;
         (
             ||| id : users @ USER(id, MAX_QUEUE_LENGTH / card(users))
         )

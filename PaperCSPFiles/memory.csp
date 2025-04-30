@@ -1,11 +1,77 @@
 module Memory(max)
-    -- Internal types
-    -- Values
-    nametype VALUES = {0..2}
-    nametype VALUES_NOT_NULL = {1..2}
-    -- The nodes in the queue
-    nametype NODES = {0..(max + 1)}
-    nametype NODES_NOT_NULL = {1..(max + 1)}
+
+    -- Nodes
+    channel next : AccessOperations.Nodes_Not_Null.AtomicNodes
+    channel value : AccessOperations.Nodes_Not_Null.AtomicIntegers
+    -- Atomic nodes
+    channel atomic_node : AccessOperations.AtomicNodes_Not_Null.Nodes
+    channel atomic_node_cas : AtomicNodes_Not_Null.Nodes.Nodes.Bool
+    -- Atomic integers
+    channel atomic_int : AccessOperations.AtomicIntegers_Not_Null.Integers
+    channel atomic_int_cas : AtomicIntegers_Not_Null.Integers_Not_Null.Integers.Bool
+
+    VARIABLE :: (Complete a) => (a=>Event, a=>Event, a) -> Proc
+    VARIABLE(myLoad, myStore, val) =
+    (
+        myLoad!val ->
+        VARIABLE(myLoad, myStore, val)
+    )
+    []
+    (
+        myStore?val ->
+        VARIABLE(myLoad, myStore, val)
+    )
+
+    alphaVARIABLE :: (Set a) => (a=>Event, a=>Event, {a}) -> {Event}
+    alphaVARIABLE(myLoad, myStore, T) =
+    {
+        myLoad.v,
+        myStore.v
+        |
+            v <- T
+    }
+
+    ATOMIC_VARIABLE(get, set, cas, val) =
+    (
+        get!val ->
+        ATOMIC_VARIABLE(get, set, cas, val)
+    )
+    []
+    (
+        set?val ->
+        ATOMIC_VARIABLE(get, set, cas, val)
+    )
+    []
+    (
+        cas?expected?newVal!(expected == val) ->
+        if (expected == val) then
+            ATOMIC_VARIABLE(get, set, cas, newVal)
+        else
+            ATOMIC_VARIABLE(get, set, cas, val)
+    )
+
+    alphaATOMIC_VARIABLE :: (Set a) => (a=>Event, a=>Event, a=>a=>Bool=>Event) -> {Event}
+    alphaATOMIC_VARIABLE(get, set, cas) =
+    {|
+        get,
+        set,
+        cas
+    |}
+
+    -- A queue is represented by a head and tail
+    datatype QUEUE = HEAD | TAIL
+    -- Head and tail are represented as atomic node references
+    -- Can load and store (queue) or CAS
+    channel queue : QUEUE.AccessOperations.Nodes_Not_Null
+    channel queue_cas : QUEUE.Nodes_Not_Null.Nodes_Not_Null.Bool
+
+    HEAD_PTR = 
+        ATOMIC_VARIABLE(queue.HEAD.load, queue.HEAD.store, queue_cas.HEAD, NODE.1)
+
+    TAIL_PTR =
+        ATOMIC_VARIABLE(queue.TAIL.load, queue.TAIL.store, queue_cas.TAIL, NODE.1)
+
+    QUEUE_OBJ = HEAD_PTR ||| TAIL_PTR
 
     -- Runs all the nodes available
     NODE_OBJS =
@@ -67,7 +133,15 @@ module Memory(max)
     alphaMEMORY_MANAGER = {new_node.n | n <- Nodes}
 
 exports
-    NULL = 0
+    -- Operations used for memory interaction
+    datatype AccessOperations = load | store
+
+    -- Values
+    nametype VALUES = {0..2}
+    nametype VALUES_NOT_NULL = {1..2}
+    -- The nodes in the queue
+    nametype NODES = {0..(max + 1)}
+    nametype NODES_NOT_NULL = {1..(max + 1)}
 
     -- Nodes in the queue
     datatype Nodes = NODE.NODES
@@ -82,17 +156,9 @@ exports
     subtype Integers_Not_Null = INT.VALUES_NOT_NULL
 
     -- Channels
-    -- Object creation channels
     channel new_node : Nodes_Not_Null
-    -- Nodes
-    channel next : Operations.Nodes_Not_Null.AtomicNodes
-    channel value : Operations.Nodes_Not_Null.AtomicIntegers
-    -- Atomic nodes
-    channel atomic_node : Operations.AtomicNodes_Not_Null.Nodes
-    channel atomic_node_cas : AtomicNodes_Not_Null.Nodes.Nodes.Bool
-    -- Atomic integers
-    channel atomic_int : Operations.AtomicIntegers_Not_Null.Integers
-    channel atomic_int_cas : AtomicIntegers_Not_Null.Integers_Not_Null.Integers.Bool
+
+    NULL = 0
 
     -- Process to start entire memory system
     MEMORY =
@@ -103,13 +169,81 @@ exports
         ATOMIC_NODES
         |||
         ATOMIC_INTEGERS
+        |||
+        QUEUE_OBJ
 
     -- Alphabet for entire memory system
     alphaMEMORY = Union({
         alphaNODE_OBJS,
         alphaATOMIC_NODES,
         alphaATOMIC_INTEGERS,
-        alphaMEMORY_MANAGER
+        alphaMEMORY_MANAGER,
+        alphaQUEUE
     })
+
+    -- Initialises the queue object
+    CREATE_QUEUE =
+        new_node?NODE.new ->
+        setNext.NODE.new!ANODE.new ->
+        setValue.NODE.new!AINT.new ->
+        getNext.NODE.new?tmp : AtomicNodes_Not_Null ->
+        setNode.tmp!nullNode ->
+        queue.HEAD.store!NODE.new ->
+        queue.TAIL.store!NODE.new ->
+        SKIP
+
+    -- Alphabet for create queue
+    alphaCREATE_QUEUE =
+    {
+        new_node.nn,
+        setNext.nn.an,
+        setValue.nn.ai,
+        getNext.nn.an,
+        setNode.an.n,
+        queue.HEAD.store.nn,
+        queue.TAIL.store.nn
+        |
+            n <- Nodes,
+            nn <- Nodes_Not_Null,
+            an <- AtomicNodes_Not_Null,
+            ai <- AtomicIntegers_Not_Null
+    }
+
+    alphaQUEUE = union(
+        alphaATOMIC_VARIABLE(
+            queue.HEAD.load,
+            queue.HEAD.store,
+            queue_cas.HEAD), 
+        alphaATOMIC_VARIABLE(
+            queue.TAIL.load,
+            queue.TAIL.store,
+            queue_cas.TAIL))
+
+    nullNode = NODE.NULL
+    nullANode = ANODE.NULL
+    nullInt = INT.NULL
+
+    -- Exposed events
+    -- Exposed queue access events
+    getHead = queue.HEAD.load
+    setHead = queue.HEAD.store
+    casHead = queue_cas.HEAD
+    getTail = queue.TAIL.load
+    setTail = queue.TAIL.store
+    casTail = queue_cas.TAIL
+
+    -- Exposed node access events
+    getNext = next.load
+    setNext = next.store
+    getValue = value.load
+    setValue = value.store
+    getNode = atomic_node.load
+    setNode = atomic_node.store
+    casNode = atomic_node_cas
+
+    -- Exposed integer access events
+    getInt = atomic_int.load
+    setInt = atomic_int.store
+    casInt = atomic_int_cas
 
 endmodule
